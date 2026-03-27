@@ -1,0 +1,1549 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>조선 왕 적통성 점수</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+  <style>
+    :root {
+      /* SKILL.md 이징 프리셋 */
+      --bezier-out: cubic-bezier(0.25, 0.1, 0.25, 1);
+      --bezier-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+      --bezier-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+      /* SKILL.md 권장 duration */
+      --duration-out: 250ms;
+      --duration-back: 400ms;
+      --duration-expo: 350ms;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: #E5E5E5;
+    }
+
+    .viewport {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      cursor: grab;
+    }
+
+    .viewport:active {
+      cursor: grabbing;
+    }
+
+    .canvas {
+      position: relative;
+      transform-origin: 0 0;
+      will-change: transform;
+    }
+
+    .squircle-defs {
+      position: absolute;
+      width: 0;
+      height: 0;
+      overflow: hidden;
+    }
+
+    .connections {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+      overflow: visible;
+    }
+
+    .connection-line {
+      stroke: #CCCCCC;
+      stroke-width: 2;
+      fill: none;
+    }
+
+    .collateral-connections {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 0;
+      overflow: visible;
+    }
+
+    .collateral-line {
+      stroke: #000000;
+      stroke-opacity: 0.08;
+      stroke-width: 1;
+      stroke-dasharray: 4 6;
+      fill: none;
+    }
+
+    .node-wrapper {
+      position: absolute;
+      z-index: 2;
+      transform-origin: center center;
+      /* 물리 시뮬레이션이 translate 제어, CSS가 scale 제어 */
+      transition: scale var(--duration-back) var(--bezier-back);
+    }
+
+    .node-wrapper:hover {
+      scale: 1.08;
+    }
+
+    .node-wrapper.disabled:hover {
+      scale: 1;
+    }
+
+    .node {
+      width: 100px;
+      height: 100px;
+      background: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      transition: box-shadow var(--duration-out) var(--bezier-out);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+      position: relative;
+    }
+
+    .node-border {
+      position: absolute;
+      top: -3px;
+      left: -3px;
+      width: 106px;
+      height: 106px;
+      background: #2196F3;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity var(--duration-out) var(--bezier-out);
+    }
+
+    .node-wrapper:hover .node {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .node-wrapper.selected .node {
+      background: #F5FAFF;
+    }
+
+    .node-wrapper.selected .node-border {
+      opacity: 1;
+    }
+
+    .node-wrapper.disabled {
+      opacity: 0.4;
+    }
+
+    .node-wrapper.disabled .node {
+      cursor: not-allowed;
+    }
+
+    .node-wrapper.disabled:hover .node {
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
+
+    .node-name {
+      font-size: 22px;
+      font-weight: 700;
+      color: #333;
+      margin-bottom: 4px;
+    }
+
+    .node-score {
+      font-size: 14px;
+      font-weight: 500;
+      color: #888;
+    }
+
+    .node-note {
+      font-size: 11px;
+      font-weight: 400;
+      color: #999;
+      margin-top: 2px;
+    }
+
+    /* 비왕 인물 스타일 */
+    .node-wrapper.not-king {
+      opacity: 0.6;
+      transition: opacity var(--duration-out) var(--bezier-out), scale var(--duration-back) var(--bezier-back);
+    }
+
+    .node-wrapper.not-king:hover {
+      opacity: 1;
+    }
+
+    .node-wrapper.not-king .node {
+      background: #F5F5F5;
+      border: 1px dashed #CCC;
+    }
+
+    .node-wrapper.not-king .node-name {
+      font-size: 18px;
+      color: #666;
+    }
+
+    /* 액체 채우기 애니메이션 (SVG 기반) */
+    .node-liquid-svg {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+      overflow: hidden;
+    }
+
+    .node-liquid-svg path {
+      fill: rgba(59, 130, 246, 0.85);
+    }
+
+    /* 텍스트 레이어 (기본) */
+    .node-text {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* 텍스트 레이어 (흰색, 액체 위) */
+    .node-text-white {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 3;
+      pointer-events: none;
+      clip-path: inset(100% 0 0 0);
+      transition: clip-path 1.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+    }
+
+    .node-text-white .node-name {
+      color: #FFFFFF;
+    }
+
+    .node-text-white .node-score {
+      color: rgba(255, 255, 255, 0.9);
+    }
+
+    /* 배우 버블 */
+    .actor-bubble {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(59, 130, 246, 0.9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 12px;
+      font-weight: 600;
+      pointer-events: none;
+      z-index: 100;
+      /* 크기, 위치, 애니메이션은 JS에서 제어 */
+    }
+
+    .actor-bubble img {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    /* 버블 기본 애니메이션 (JS에서 커스텀 속성으로 제어) */
+    @keyframes bubbleFloat {
+      0% {
+        transform: translateY(0) translateX(0) scale(0.5);
+        opacity: 0;
+      }
+      10% {
+        transform: translateY(-15px) translateX(calc(var(--drift) * 0.1)) scale(1);
+        opacity: 1;
+      }
+      50% {
+        transform: translateY(-60px) translateX(calc(var(--drift) * 0.5 + var(--wobble) * 1px));
+        opacity: 0.8;
+      }
+      100% {
+        transform: translateY(-130px) translateX(var(--drift));
+        opacity: 0;
+      }
+    }
+
+    .relation-tooltip {
+      position: absolute;
+      background: #2196F3;
+      color: white;
+      padding: 10px 18px;
+      border-radius: 24px;
+      font-size: 15px;
+      font-weight: 600;
+      white-space: nowrap;
+      z-index: 10;
+      pointer-events: none;
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.9);
+      transition: opacity var(--duration-out) var(--bezier-out),
+                  transform var(--duration-out) var(--bezier-out);
+    }
+
+    .relation-tooltip.visible {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+
+    /* SKILL.md: 모션 감소 선호 사용자 대응 */
+    @media (prefers-reduced-motion: reduce) {
+      :root {
+        --duration-out: 0ms;
+        --duration-back: 0ms;
+        --duration-expo: 0ms;
+      }
+
+      .node-wrapper,
+      .node-wrapper.floating-paused {
+        transition: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- SVG defs for squircle clip paths -->
+  <svg class="squircle-defs">
+    <defs id="squircle-defs"></defs>
+  </svg>
+
+  <div class="viewport">
+    <div class="canvas">
+      <svg class="collateral-connections"></svg>
+      <svg class="connections"></svg>
+      <div class="relation-tooltip"></div>
+    </div>
+  </div>
+
+  <script>
+    // ==================== Pan/Zoom 상태 ====================
+    let scale = 1;
+    let panX = 0;
+    let panY = 0;
+    let isDragging = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let panStartX = 0;
+    let panStartY = 0;
+
+    const MIN_SCALE = 0.3;
+    const MAX_SCALE = 3;
+
+    // ==================== Mass-Spring 물리 시뮬레이션 ====================
+    const physics = {
+      nodes: {},           // 각 노드의 물리 상태
+      springs: [],         // 노드 간 스프링 연결
+      animationFrameId: null,
+
+      // 파라미터 (4~8px 진폭)
+      anchorStiffness: 0.003,      // anchor spring 강도 (느슨하게)
+      connectionStiffness: 0.005,  // 연결 spring 강도
+      damping: 0.985,              // 감쇠
+      pinnedStiffness: 0.05,       // 고정 시 anchor 강도
+      noiseStrength: 0.06,         // 노이즈 힘 세기 (눈에 보이게)
+      noiseTimeScale: 0.0004       // 시간축 이동 속도
+    };
+
+    // ==================== Value Noise 구현 ====================
+    const noisePermutation = [];
+    for (let i = 0; i < 256; i++) noisePermutation[i] = i;
+    // Fisher-Yates shuffle
+    for (let i = 255; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [noisePermutation[i], noisePermutation[j]] = [noisePermutation[j], noisePermutation[i]];
+    }
+    // Double the array to avoid overflow
+    for (let i = 0; i < 256; i++) noisePermutation[256 + i] = noisePermutation[i];
+
+    function fade(t) {
+      return t * t * t * (t * (t * 6 - 15) + 10); // Perlin's improved fade
+    }
+
+    function lerp(a, b, t) {
+      return a + t * (b - a);
+    }
+
+    function grad(hash, x, y) {
+      const h = hash & 3;
+      const u = h < 2 ? x : y;
+      const v = h < 2 ? y : x;
+      return ((h & 1) ? -u : u) + ((h & 2) ? -v : v);
+    }
+
+    function noise2D(x, y) {
+      const X = Math.floor(x) & 255;
+      const Y = Math.floor(y) & 255;
+      x -= Math.floor(x);
+      y -= Math.floor(y);
+
+      const u = fade(x);
+      const v = fade(y);
+
+      const A = noisePermutation[X] + Y;
+      const B = noisePermutation[X + 1] + Y;
+
+      return lerp(
+        lerp(grad(noisePermutation[A], x, y), grad(noisePermutation[B], x - 1, y), u),
+        lerp(grad(noisePermutation[A + 1], x, y - 1), grad(noisePermutation[B + 1], x - 1, y - 1), u),
+        v
+      );
+    }
+
+    // 콘텐츠 바운딩 박스 계산
+    function getContentBounds(nodeIds = null) {
+      const padding = 40;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+      const targetIds = nodeIds || Object.keys(positions);
+
+      for (const id of targetIds) {
+        const pos = positions[id];
+        if (!pos) continue;
+        minX = Math.min(minX, pos.x);
+        minY = Math.min(minY, pos.y);
+        maxX = Math.max(maxX, pos.x + nodeSize);
+        maxY = Math.max(maxY, pos.y + nodeSize);
+      }
+
+      return {
+        x: minX - padding,
+        y: minY - padding,
+        width: maxX - minX + padding * 2,
+        height: maxY - minY + padding * 2
+      };
+    }
+
+    // 태정태세문단세 7명의 ID
+    const initialViewKings = ['taejo', 'jeongjong', 'taejong', 'sejong', 'munjong', 'danjong', 'sejo'];
+
+    // 초기 뷰 설정 (태정태세문단세 7명에 포커스)
+    function fitToInitialView() {
+      const viewport = document.querySelector('.viewport');
+      const bounds = getContentBounds(initialViewKings);
+      const padding = 80; // 상하좌우 80px 여백
+
+      const viewportWidth = viewport.clientWidth;
+      const viewportHeight = viewport.clientHeight;
+
+      const availableWidth = viewportWidth - padding * 2;
+      const availableHeight = viewportHeight - padding * 2;
+
+      const scaleX = availableWidth / bounds.width;
+      const scaleY = availableHeight / bounds.height;
+      scale = Math.min(scaleX, scaleY, 1.2); // 최대 scale 1.2
+
+      const scaledWidth = bounds.width * scale;
+      const scaledHeight = bounds.height * scale;
+      panX = (viewportWidth - scaledWidth) / 2 - bounds.x * scale;
+      panY = (viewportHeight - scaledHeight) / 2 - bounds.y * scale;
+
+      updateTransform();
+    }
+
+    // 리사이즈 시 뷰 조정 (전체 콘텐츠 기준)
+    function fitToViewport() {
+      const viewport = document.querySelector('.viewport');
+      const bounds = getContentBounds();
+
+      const viewportWidth = viewport.clientWidth;
+      const viewportHeight = viewport.clientHeight;
+
+      const scaleX = viewportWidth / bounds.width;
+      const scaleY = viewportHeight / bounds.height;
+      scale = Math.min(scaleX, scaleY, 1.5);
+
+      const scaledWidth = bounds.width * scale;
+      const scaledHeight = bounds.height * scale;
+      panX = (viewportWidth - scaledWidth) / 2 - bounds.x * scale;
+      panY = (viewportHeight - scaledHeight) / 2 - bounds.y * scale;
+
+      updateTransform();
+    }
+
+    function updateTransform() {
+      const canvas = document.querySelector('.canvas');
+      canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+    }
+
+    // Wheel 이벤트 (zoom + pan)
+    function handleWheel(e) {
+      e.preventDefault();
+
+      if (e.ctrlKey) {
+        const rect = document.querySelector('.viewport').getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        const prevScale = scale;
+        const delta = -e.deltaY * 0.01;
+        scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * (1 + delta)));
+
+        const scaleRatio = scale / prevScale;
+        panX = mouseX - (mouseX - panX) * scaleRatio;
+        panY = mouseY - (mouseY - panY) * scaleRatio;
+      } else {
+        panX -= e.deltaX;
+        panY -= e.deltaY;
+      }
+
+      updateTransform();
+    }
+
+    // 마우스 드래그 pan
+    function handleMouseDown(e) {
+      if (e.target.closest('.node-wrapper')) return;
+      isDragging = true;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      panStartX = panX;
+      panStartY = panY;
+    }
+
+    function handleMouseMove(e) {
+      if (!isDragging) return;
+      panX = panStartX + (e.clientX - dragStartX);
+      panY = panStartY + (e.clientY - dragStartY);
+      updateTransform();
+    }
+
+    function handleMouseUp() {
+      isDragging = false;
+    }
+
+    // ==================== Squircle ====================
+    function getSquirclePath(width, height, cornerRadius, cornerSmoothing) {
+      const maxRadius = Math.min(width, height) / 2;
+      const r = Math.min(cornerRadius, maxRadius);
+
+      if (cornerSmoothing === 0) {
+        return `M ${r} 0 L ${width - r} 0 Q ${width} 0 ${width} ${r} L ${width} ${height - r} Q ${width} ${height} ${width - r} ${height} L ${r} ${height} Q 0 ${height} 0 ${height - r} L 0 ${r} Q 0 0 ${r} 0 Z`;
+      }
+
+      const smoothness = cornerSmoothing;
+      const arcLength = r * (1 + smoothness * 0.5);
+      const handleLength = r * smoothness * 0.55;
+
+      return `M ${arcLength} 0 L ${width - arcLength} 0 C ${width - handleLength} 0, ${width} ${handleLength}, ${width} ${arcLength} L ${width} ${height - arcLength} C ${width} ${height - handleLength}, ${width - handleLength} ${height}, ${width - arcLength} ${height} L ${arcLength} ${height} C ${handleLength} ${height}, 0 ${height - handleLength}, 0 ${height - arcLength} L 0 ${arcLength} C 0 ${handleLength}, ${handleLength} 0, ${arcLength} 0 Z`;
+    }
+
+    const SQUIRCLE_CONFIG = { cornerRadius: 24, cornerSmoothing: 0.6 };
+
+    // ==================== 데이터 ====================
+    const kings = {
+      // 태조~단종
+      taejo: { name: '태조', score: 20 },
+      jeongjong: { name: '정종', score: 55, father: 'taejo', mother: '신의왕후' },
+      taejong: { name: '태종', score: 50, father: 'taejo', mother: '신의왕후' },
+      sejong: { name: '세종', score: 70, father: 'taejong', mother: '원경왕후' },
+      munjong: { name: '문종', score: 95, father: 'sejong', mother: '소헌왕후' },
+      sejo: { name: '세조', score: 55, father: 'sejong', mother: '소헌왕후' },
+      danjong: { name: '단종', score: 100, father: 'munjong', mother: '현덕왕후' },
+      // 세조 계열
+      yejong: { name: '예종', score: 85, father: 'sejo', mother: '정희왕후' },
+      uigyeongse: { name: '의경세자', score: null, father: 'sejo', mother: '정희왕후', isNotKing: true },
+      seongjong: { name: '성종', score: 50, father: 'uigyeongse' },
+      yeonsangun: { name: '연산군', score: 95, father: 'seongjong', mother: '폐비윤씨' },
+      jungjong: { name: '중종', score: 41, father: 'seongjong', mother: '정현왕후' },
+      injong: { name: '인종', score: 97, father: 'jungjong', mother: '장경왕후' },
+      myeongjong: { name: '명종', score: 85, father: 'jungjong', mother: '문정왕후' },
+      deukhunggun: { name: '덕흥군', score: null, father: 'jungjong', mother: '창빈안씨', isNotKing: true },
+      seonjo: { name: '선조', score: 31, father: 'deukhunggun' },
+      gwanghaegun: { name: '광해군', score: 63, father: 'seonjo', mother: '공빈김씨' },
+      jeongwongun: { name: '정원군', score: null, father: 'seonjo', mother: '인빈김씨', isNotKing: true },
+      injo: { name: '인조', score: 11, father: 'jeongwongun' },
+      // 인조 자녀 (소현세자 > 효종 > 인평대군)
+      sohyeonse: { name: '소현세자', score: null, father: 'injo', mother: '인열왕후', isNotKing: true },
+      hyojong: { name: '효종', score: 70, father: 'injo', mother: '인열왕후' },
+      inpyeong: { name: '인평대군', score: null, father: 'injo', mother: '인열왕후', isNotKing: true },
+      // 효종 계열
+      hyeonjong: { name: '현종', score: 90, father: 'hyojong' },
+      sukjong: { name: '숙종', score: 92, father: 'hyeonjong' },
+      gyeongjong: { name: '경종', score: 97, father: 'sukjong', mother: '희빈장씨' },
+      yeongjo: { name: '영조', score: 71, father: 'sukjong', mother: '숙빈최씨' },
+      // 사도세자 계열 (정조 > 은언군)
+      sadose: { name: '사도세자', score: null, father: 'yeongjo', mother: '정성왕후', isNotKing: true },
+      jeongjo: { name: '정조', score: 75, father: 'sadose', mother: '혜경궁홍씨' },
+      euneongun: { name: '은언군', score: null, father: 'sadose', mother: '숙빈임씨', isNotKing: true },
+      // 정조 계열
+      sunjo: { name: '순조', score: 73, father: 'jeongjo' },
+      hyomyeongse: { name: '효명세자', score: null, father: 'sunjo', isNotKing: true },
+      heonjong: { name: '헌종', score: 70, father: 'hyomyeongse' },
+      // 은언군 → 철종 계열
+      jeongye: { name: '전계대원군', score: null, father: 'euneongun', isNotKing: true },
+      cheoljong: { name: '철종', score: 11, father: 'jeongye' },
+      // 인평대군 → 고종 계열
+      boknyeong: { name: '복녕군', score: null, father: 'inpyeong', isNotKing: true },
+      uiwon: { name: '의원군', score: null, father: 'boknyeong', isNotKing: true },
+      anheung: { name: '안흥군', score: null, father: 'uiwon', isNotKing: true },
+      byeongwon: { name: '이병원', score: null, father: 'anheung', isNotKing: true },
+      namyeongun: { name: '남연군', score: null, father: 'byeongwon', isNotKing: true },
+      heungseongun: { name: '흥선군', score: null, father: 'namyeongun', isNotKing: true },
+      gojong: { name: '고종', score: 11, father: 'heungseongun' },
+      sunjong: { name: '순종', score: 60, father: 'gojong' }
+    };
+
+    // 배우 데이터 (버블 애니메이션용)
+    const actorData = {
+      danjong: {
+        actorImages: [
+          './단종1.jpg',
+          './단종2.jpg',
+          './단종3.jpg',
+          './단종4.jpg',
+          './단종5.jpg',
+          './단종6.jpg'
+        ],
+        lastImageIndex: -1
+      },
+      jeongjo: {
+        actorImages: [
+          './정조_이준호_a.jpg',
+          './정조_이준호_b.jpg',
+          './정조_이준호_c.jpg',
+          './정조_이준호_d_v2.jpg',
+          './정조_이준호_e.jpg'
+        ],
+        lastImageIndex: -1
+      }
+    };
+
+    const parentChild = {
+      taejo: ['jeongjong', 'taejong'],
+      taejong: ['sejong'],
+      sejong: ['munjong', 'sejo'],
+      munjong: ['danjong'],
+      sejo: ['yejong', 'uigyeongse'],
+      uigyeongse: ['seongjong'],
+      seongjong: ['yeonsangun', 'jungjong'],
+      jungjong: ['injong', 'myeongjong', 'deukhunggun'],
+      deukhunggun: ['seonjo'],
+      seonjo: ['gwanghaegun', 'jeongwongun'],
+      jeongwongun: ['injo'],
+      injo: ['sohyeonse', 'hyojong', 'inpyeong'],
+      hyojong: ['hyeonjong'],
+      hyeonjong: ['sukjong'],
+      sukjong: ['gyeongjong', 'yeongjo'],
+      yeongjo: ['sadose'],
+      sadose: ['jeongjo', 'euneongun'],
+      jeongjo: ['sunjo'],
+      sunjo: ['hyomyeongse'],
+      hyomyeongse: ['heonjong'],
+      euneongun: ['jeongye'],
+      jeongye: ['cheoljong'],
+      inpyeong: ['boknyeong'],
+      boknyeong: ['uiwon'],
+      uiwon: ['anheung'],
+      anheung: ['byeongwon'],
+      byeongwon: ['namyeongun'],
+      namyeongun: ['heungseongun'],
+      heungseongun: ['gojong'],
+      gojong: ['sunjong']
+    };
+
+    const nodeSize = 100;
+    const nodeGapX = 20;
+    const nodeGapY = 130;
+
+    // 레이아웃 자동 계산 (bottom-up: 자식 먼저 배치, 부모는 자식 중앙)
+    function calculatePositions() {
+      const pos = {};
+      const nodeLevel = {};
+      const levelNextX = {}; // 각 레벨에서 다음 배치 가능한 X
+
+      // 1단계: 레벨 할당 (DFS)
+      function assignLevel(id, level) {
+        nodeLevel[id] = level;
+        const children = parentChild[id] || [];
+        children.forEach(child => assignLevel(child, level + 1));
+      }
+
+      // 2단계: 자식 먼저 배치 후 부모 위치 계산 (post-order)
+      function placeSubtree(id) {
+        const level = nodeLevel[id];
+        const y = level * nodeGapY + 20;
+        const children = parentChild[id] || [];
+
+        if (children.length === 0) {
+          // 리프 노드: 해당 레벨의 다음 가용 X에 배치
+          const x = levelNextX[level] || 0;
+          pos[id] = { x, y };
+          levelNextX[level] = x + nodeSize + nodeGapX;
+          return;
+        }
+
+        // 자식들 먼저 배치 (재귀)
+        children.forEach(child => placeSubtree(child));
+
+        // 부모 X = (첫째 자식 X + 막내 자식 X) / 2
+        const firstChildX = pos[children[0]].x;
+        const lastChildX = pos[children[children.length - 1]].x;
+        const parentX = (firstChildX + lastChildX) / 2;
+
+        // 부모 레벨의 다음 가용 X 확인
+        const minX = levelNextX[level] || 0;
+
+        if (parentX >= minX) {
+          // 공간 충분: 그대로 배치
+          pos[id] = { x: parentX, y };
+          levelNextX[level] = parentX + nodeSize + nodeGapX;
+        } else {
+          // 공간 부족: 서브트리 전체를 오른쪽으로 이동
+          const shift = minX - parentX;
+          shiftSubtree(id, shift);
+          pos[id] = { x: minX, y };
+          levelNextX[level] = minX + nodeSize + nodeGapX;
+        }
+      }
+
+      // 서브트리 전체 이동 (부모 제외, 자식들만)
+      function shiftSubtree(id, dx) {
+        const children = parentChild[id] || [];
+        children.forEach(child => {
+          if (pos[child]) {
+            pos[child].x += dx;
+            levelNextX[nodeLevel[child]] = Math.max(
+              levelNextX[nodeLevel[child]] || 0,
+              pos[child].x + nodeSize + nodeGapX
+            );
+          }
+          shiftSubtree(child, dx);
+        });
+      }
+
+      // 메인 트리 (태조 계열)
+      assignLevel('taejo', 0);
+      placeSubtree('taejo');
+
+      // 독립된 루트 노드들 찾기
+      const allChildren = new Set(Object.values(parentChild).flat());
+      const roots = Object.keys(kings).filter(id => !allChildren.has(id) && !pos[id]);
+
+      // 별도 트리들 배치
+      roots.forEach(root => {
+        if (!pos[root]) {
+          // 기존 배치된 노드들과 간격 확보
+          const maxX = Math.max(0, ...Object.values(pos).map(p => p.x));
+          Object.keys(levelNextX).forEach(lvl => {
+            levelNextX[lvl] = maxX + nodeSize + nodeGapX * 3;
+          });
+          assignLevel(root, 0);
+          placeSubtree(root);
+        }
+      });
+
+      return pos;
+    }
+
+    const positions = calculatePositions();
+
+    // 현재 부유 오프셋을 반영한 위치
+    const currentOffsets = {};
+
+    let selectedKings = [];
+
+    // ==================== Squircle ClipPath ====================
+    function createSquircleClipPath(id, width, height) {
+      const defs = document.getElementById('squircle-defs');
+
+      const path = getSquirclePath(width, height, SQUIRCLE_CONFIG.cornerRadius, SQUIRCLE_CONFIG.cornerSmoothing);
+      const clipPath = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+      clipPath.setAttribute('id', `squircle-${id}`);
+      const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      pathEl.setAttribute('d', path);
+      clipPath.appendChild(pathEl);
+      defs.appendChild(clipPath);
+
+      const borderPath = getSquirclePath(width + 6, height + 6, SQUIRCLE_CONFIG.cornerRadius + 3, SQUIRCLE_CONFIG.cornerSmoothing);
+      const borderClipPath = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+      borderClipPath.setAttribute('id', `squircle-border-${id}`);
+      const borderPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      borderPathEl.setAttribute('d', borderPath);
+      borderClipPath.appendChild(borderPathEl);
+      defs.appendChild(borderClipPath);
+    }
+
+    // ==================== Mass-Spring 물리 함수 ====================
+    const AMPLITUDE_NORMAL = 1.0;
+    const AMPLITUDE_HOVER = 0.2;
+    const AMPLITUDE_SELECTED = 0;
+    const AMPLITUDE_LERP_SPEED = 0.04; // 약 0.8초에 걸쳐 변화 (60fps 기준)
+
+    function initPhysics() {
+      // 각 노드 물리 상태 초기화 (노이즈 시드 포함)
+      const nodeIds = Object.keys(kings);
+      nodeIds.forEach((id, index) => {
+        physics.nodes[id] = {
+          x: 0,        // rest position으로부터의 오프셋
+          y: 0,
+          vx: 0,       // 속도
+          vy: 0,
+          amplitude: AMPLITUDE_NORMAL,       // 현재 진폭 배율
+          amplitudeTarget: AMPLITUDE_NORMAL, // 목표 진폭 배율
+          noiseSeedX: index * 100 + Math.random() * 50,  // 노드별 고유 시드
+          noiseSeedY: index * 100 + 500 + Math.random() * 50
+        };
+        currentOffsets[id] = { x: 0, y: 0 };
+      });
+
+      // 부모-자식 관계를 스프링으로 연결
+      for (const [parent, children] of Object.entries(parentChild)) {
+        for (const child of children) {
+          physics.springs.push({ a: parent, b: child });
+        }
+      }
+    }
+
+    function simulatePhysics(timestamp) {
+      const time = timestamp * physics.noiseTimeScale;
+
+      // 각 노드에 대해 힘 계산
+      for (const [id, node] of Object.entries(physics.nodes)) {
+        // 진폭을 목표값으로 부드럽게 보간
+        node.amplitude += (node.amplitudeTarget - node.amplitude) * AMPLITUDE_LERP_SPEED;
+
+        // Anchor spring 강도 (진폭이 낮을수록 강하게)
+        const anchorStrength = physics.anchorStiffness +
+          (physics.pinnedStiffness - physics.anchorStiffness) * (1 - node.amplitude);
+
+        const ax = -node.x * anchorStrength;
+        const ay = -node.y * anchorStrength;
+        node.vx += ax;
+        node.vy += ay;
+
+        // Perlin noise 기반 지속적인 힘 (진폭에 비례)
+        const noiseX = noise2D(node.noiseSeedX, time);
+        const noiseY = noise2D(node.noiseSeedY, time);
+        node.vx += noiseX * physics.noiseStrength * node.amplitude;
+        node.vy += noiseY * physics.noiseStrength * node.amplitude;
+      }
+
+      // 연결 스프링 힘 계산
+      for (const spring of physics.springs) {
+        const nodeA = physics.nodes[spring.a];
+        const nodeB = physics.nodes[spring.b];
+
+        // 두 노드 간 오프셋 차이
+        const dx = nodeB.x - nodeA.x;
+        const dy = nodeB.y - nodeA.y;
+
+        // 스프링 힘 (차이를 줄이려는 방향)
+        const fx = dx * physics.connectionStiffness;
+        const fy = dy * physics.connectionStiffness;
+
+        if (!nodeA.pinned) {
+          nodeA.vx += fx;
+          nodeA.vy += fy;
+        }
+        if (!nodeB.pinned) {
+          nodeB.vx -= fx;
+          nodeB.vy -= fy;
+        }
+      }
+
+      // 속도 적용 및 감쇠
+      for (const [id, node] of Object.entries(physics.nodes)) {
+        // 감쇠 적용
+        node.vx *= physics.damping;
+        node.vy *= physics.damping;
+
+        // 위치 업데이트
+        node.x += node.vx;
+        node.y += node.vy;
+
+        // 오프셋 저장
+        currentOffsets[id] = { x: node.x, y: node.y };
+
+        // DOM 업데이트
+        const wrapper = document.getElementById(id);
+        if (wrapper) {
+          wrapper.style.transform = `translate(${node.x}px, ${node.y}px)`;
+        }
+      }
+
+      // 연결선 업데이트
+      updateConnections();
+
+      physics.animationFrameId = requestAnimationFrame(simulatePhysics);
+    }
+
+    function setNodeHovered(id) {
+      if (physics.nodes[id]) {
+        physics.nodes[id].amplitudeTarget = AMPLITUDE_HOVER;
+      }
+    }
+
+    function setNodeSelected(id) {
+      if (physics.nodes[id]) {
+        physics.nodes[id].amplitudeTarget = AMPLITUDE_SELECTED;
+      }
+    }
+
+    function setNodeNormal(id) {
+      if (physics.nodes[id]) {
+        physics.nodes[id].amplitudeTarget = AMPLITUDE_NORMAL;
+      }
+    }
+
+    // ==================== 관계 계산 ====================
+    function calculateRelation(id1, id2) {
+      if (id1 === id2) return { distance: 0 };
+      const visited = new Set();
+      const queue = [[id1, 0]];
+
+      while (queue.length > 0) {
+        const [current, distance] = queue.shift();
+        if (current === id2) return { distance };
+        if (visited.has(current)) continue;
+        visited.add(current);
+
+        const king = kings[current];
+        if (king.father && !visited.has(king.father)) queue.push([king.father, distance + 1]);
+        if (parentChild[current]) {
+          for (const child of parentChild[current]) {
+            if (!visited.has(child)) queue.push([child, distance + 1]);
+          }
+        }
+      }
+      return { distance: Infinity };
+    }
+
+    // 조상 경로 찾기 (본인 포함)
+    function getAncestorPath(id) {
+      const path = [];
+      let current = id;
+      while (current) {
+        path.push(current);
+        current = kings[current]?.father;
+      }
+      return path;
+    }
+
+    // 공통 조상 찾기 및 각각의 세대 차이 반환
+    function findCommonAncestor(id1, id2) {
+      const path1 = getAncestorPath(id1);
+      const path2 = getAncestorPath(id2);
+
+      for (let i = 0; i < path1.length; i++) {
+        const idx2 = path2.indexOf(path1[i]);
+        if (idx2 !== -1) {
+          return {
+            ancestor: path1[i],
+            gen1: i,      // id1에서 공통 조상까지 세대 수
+            gen2: idx2    // id2에서 공통 조상까지 세대 수
+          };
+        }
+      }
+      return null;
+    }
+
+    // 이복 여부 확인 (같은 아버지, 다른 어머니)
+    function isHalfSibling(id1, id2) {
+      const k1 = kings[id1];
+      const k2 = kings[id2];
+      if (!k1.father || k1.father !== k2.father) return false;
+      if (!k1.mother || !k2.mother) return false;
+      return k1.mother !== k2.mother;
+    }
+
+    // 관계 텍스트 생성 (후임 기준, id2가 나중에 선택된 사람)
+    function getRelationText(id1, id2) {
+      const person1 = kings[id1];
+      const person2 = kings[id2];
+
+      const common = findCommonAncestor(id1, id2);
+      if (!common) {
+        return `${person2.name}과 ${person1.name}`;
+      }
+
+      const { gen1, gen2 } = common;
+
+      // 직계 관계 (한쪽이 다른 쪽의 조상)
+      if (gen1 === 0 || gen2 === 0) {
+        const genDiff = gen2 - gen1; // 양수: id2가 후손, 음수: id2가 조상
+
+        if (genDiff === 1) return `${person2.name}은 ${person1.name}의 아들`;
+        if (genDiff === -1) return `${person2.name}은 ${person1.name}의 아버지`;
+        if (genDiff === 2) return `${person2.name}은 ${person1.name}의 손자`;
+        if (genDiff === -2) return `${person2.name}은 ${person1.name}의 할아버지`;
+        if (genDiff === 3) return `${person2.name}은 ${person1.name}의 증손자`;
+        if (genDiff === -3) return `${person2.name}은 ${person1.name}의 증조할아버지`;
+        if (genDiff === 4) return `${person2.name}은 ${person1.name}의 고손자`;
+        if (genDiff === -4) return `${person2.name}은 ${person1.name}의 고조할아버지`;
+        if (genDiff > 4) return `${person2.name}은 ${person1.name}의 ${genDiff}대손`;
+        if (genDiff < -4) return `${person2.name}은 ${person1.name}의 ${-genDiff}대조`;
+      }
+
+      // 방계 관계
+      const halfPrefix = isHalfSibling(id1, id2) ? '이복' : '';
+
+      // 형제 (1촌-1촌)
+      if (gen1 === 1 && gen2 === 1) {
+        return `${person2.name}은 ${person1.name}의 ${halfPrefix}형제`;
+      }
+
+      // 삼촌-조카 (1촌-2촌 또는 2촌-1촌)
+      if (gen1 === 1 && gen2 === 2) {
+        return `${person2.name}은 ${person1.name}의 조카`;
+      }
+      if (gen1 === 2 && gen2 === 1) {
+        return `${person2.name}은 ${person1.name}의 삼촌`;
+      }
+
+      // 사촌 (2촌-2촌)
+      if (gen1 === 2 && gen2 === 2) {
+        return `${person2.name}은 ${person1.name}의 사촌`;
+      }
+
+      // 대고모/대삼촌-종손 (1촌-3촌 또는 3촌-1촌)
+      if (gen1 === 1 && gen2 === 3) {
+        return `${person2.name}은 ${person1.name}의 종손`;
+      }
+      if (gen1 === 3 && gen2 === 1) {
+        return `${person2.name}은 ${person1.name}의 종조부`;
+      }
+
+      // 당숙-당조카 (2촌-3촌 또는 3촌-2촌)
+      if (gen1 === 2 && gen2 === 3) {
+        return `${person2.name}은 ${person1.name}의 당조카`;
+      }
+      if (gen1 === 3 && gen2 === 2) {
+        return `${person2.name}은 ${person1.name}의 당숙`;
+      }
+
+      // 오촌 이상
+      const chon = gen1 + gen2;
+      return `${person2.name}은 ${person1.name}의 ${chon}촌`;
+    }
+
+    // ==================== 배우 버블 애니메이션 ====================
+    const bubbleIntervals = {}; // 노드별 버블 생성 interval
+
+    function startBubbleAnimation(id) {
+      if (bubbleIntervals[id]) return; // 이미 실행 중
+
+      const data = actorData[id];
+      if (!data || !data.actorImages || data.actorImages.length === 0) return;
+
+      const wrapper = document.getElementById(id);
+
+      function getRandomImageIndex() {
+        const images = data.actorImages;
+        if (images.length === 1) return 0;
+
+        // 직전 이미지와 다른 이미지 선택
+        let newIndex;
+        do {
+          newIndex = Math.floor(Math.random() * images.length);
+        } while (newIndex === data.lastImageIndex);
+
+        data.lastImageIndex = newIndex;
+        return newIndex;
+      }
+
+      function createBubble() {
+        const bubble = document.createElement('div');
+        bubble.className = 'actor-bubble';
+
+        // 랜덤 이미지 선택
+        const imageIndex = getRandomImageIndex();
+        const image = data.actorImages[imageIndex];
+
+        if (image) {
+          bubble.innerHTML = `<img src="${image}" alt="actor">`;
+        }
+        // 이미지가 없으면 빈 원형 버블 (CSS 배경색 적용)
+
+        // 랜덤 크기 (40~52px)
+        const size = 40 + Math.random() * 12;
+        bubble.style.width = `${size}px`;
+        bubble.style.height = `${size}px`;
+
+        // 시작 X 위치 (중앙 근처), 노드 바로 위에서 시작
+        const startX = 50 - size / 2 + (Math.random() - 0.5) * 20;
+        bubble.style.left = `${startX}px`;
+        bubble.style.top = `${-size + 15}px`;
+
+        // 랜덤 drift (-40 ~ +40px)
+        const drift = (Math.random() - 0.5) * 80;
+        // 랜덤 wobble 강도
+        const wobble = (Math.random() - 0.5) * 10;
+
+        bubble.style.setProperty('--drift', `${drift}px`);
+        bubble.style.setProperty('--wobble', wobble);
+        bubble.style.animation = 'bubbleFloat 2s ease-out forwards';
+
+        wrapper.appendChild(bubble);
+      }
+
+      // 첫 버블 즉시 생성
+      createBubble();
+
+      // 랜덤 간격 (0.3~0.8초)으로 계속 생성
+      function scheduleNext() {
+        const delay = 300 + Math.random() * 500;
+        bubbleIntervals[id] = setTimeout(() => {
+          createBubble();
+          scheduleNext();
+        }, delay);
+      }
+      scheduleNext();
+    }
+
+    function stopBubbleAnimation(id) {
+      if (bubbleIntervals[id]) {
+        clearTimeout(bubbleIntervals[id]);
+        delete bubbleIntervals[id];
+      }
+    }
+
+    // ==================== 렌더링 ====================
+    function createNodes() {
+      const canvas = document.querySelector('.canvas');
+
+      // 캔버스 크기 계산
+      const bounds = getContentBounds();
+      canvas.style.width = bounds.width + 'px';
+      canvas.style.height = bounds.height + 'px';
+
+      for (const [id, king] of Object.entries(kings)) {
+        createSquircleClipPath(id, nodeSize, nodeSize);
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'node-wrapper' + (king.isNotKing ? ' not-king' : '');
+        wrapper.id = id;
+        wrapper.style.left = positions[id].x + 'px';
+        wrapper.style.top = positions[id].y + 'px';
+
+        const border = document.createElement('div');
+        border.className = 'node-border';
+        border.style.clipPath = `url(#squircle-border-${id})`;
+
+        const node = document.createElement('div');
+        node.className = 'node';
+        node.style.clipPath = `url(#squircle-${id})`;
+
+        // 점수 또는 노트 표시
+        let scoreHtml = '';
+        if (king.score !== null) {
+          scoreHtml = `<span class="node-score">${king.score}점</span>`;
+        }
+        if (king.note) {
+          scoreHtml += `<span class="node-note">${king.note}</span>`;
+        }
+
+        // 액체 채우기 (점수가 있는 경우만) - SVG 기반
+        if (king.score !== null) {
+          const liquidSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          liquidSvg.setAttribute('class', 'node-liquid-svg');
+          liquidSvg.setAttribute('viewBox', `0 0 ${nodeSize} ${nodeSize}`);
+          liquidSvg.setAttribute('preserveAspectRatio', 'none');
+
+          const liquidPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          liquidPath.setAttribute('class', 'liquid-path');
+          liquidPath.dataset.score = king.score;
+          liquidPath.dataset.phase = Math.random() * Math.PI * 2; // 노드별 랜덤 위상
+          liquidPath.dataset.nodeId = id;
+
+          liquidSvg.appendChild(liquidPath);
+          node.appendChild(liquidSvg);
+        }
+
+        // 기본 텍스트 레이어
+        const textDefault = document.createElement('div');
+        textDefault.className = 'node-text';
+        textDefault.innerHTML = `
+          <span class="node-name">${king.name}</span>
+          ${scoreHtml}
+        `;
+        node.appendChild(textDefault);
+
+        // 흰색 텍스트 레이어 (액체 위에 표시)
+        if (king.score !== null) {
+          const textWhite = document.createElement('div');
+          textWhite.className = 'node-text-white';
+          textWhite.dataset.score = king.score;
+          textWhite.innerHTML = `
+            <span class="node-name">${king.name}</span>
+            ${scoreHtml}
+          `;
+          node.appendChild(textWhite);
+        }
+
+        wrapper.appendChild(border);
+        wrapper.appendChild(node);
+
+        // 호버 시 부유 진폭 감소 + 버블 애니메이션
+        wrapper.addEventListener('mouseenter', () => {
+          if (!selectedKings.includes(id)) setNodeHovered(id);
+          if (actorData[id]) startBubbleAnimation(id);
+        });
+        wrapper.addEventListener('mouseleave', () => {
+          if (!selectedKings.includes(id)) setNodeNormal(id);
+          stopBubbleAnimation(id);
+        });
+
+        wrapper.addEventListener('click', (e) => {
+          e.stopPropagation();
+          handleNodeClick(id);
+        });
+
+        canvas.appendChild(wrapper);
+      }
+    }
+
+    // ==================== 액체 파형 애니메이션 ====================
+    const liquidState = {
+      paths: [],
+      startTime: null,
+      fillDuration: 1200, // 차오르는 시간 (ms)
+      isAnimating: false
+    };
+
+    // 파형 경로 생성
+    function generateWavePath(width, height, waterLevel, amplitude, phase, time) {
+      const waveLength = width;
+      const y = height - waterLevel; // 수면 높이 (위에서부터)
+
+      // sin 곡선으로 수면 표현
+      let path = `M 0 ${y + Math.sin(phase + time * 0.003) * amplitude}`;
+
+      const segments = 8;
+      for (let i = 1; i <= segments; i++) {
+        const x = (width / segments) * i;
+        const waveY = y + Math.sin(phase + time * 0.003 + (i / segments) * Math.PI * 2) * amplitude;
+        path += ` L ${x} ${waveY}`;
+      }
+
+      // 하단 닫기
+      path += ` L ${width} ${height} L 0 ${height} Z`;
+      return path;
+    }
+
+    // 액체 애니메이션 루프
+    function animateLiquid(timestamp) {
+      if (!liquidState.startTime) liquidState.startTime = timestamp;
+      const elapsed = timestamp - liquidState.startTime;
+
+      liquidState.paths.forEach((pathData, index) => {
+        const { path, score, phase, delay } = pathData;
+        const adjustedElapsed = Math.max(0, elapsed - delay);
+
+        // 차오르는 진행률 (0~1)
+        const fillProgress = Math.min(1, adjustedElapsed / liquidState.fillDuration);
+        // easeOut 적용
+        const easedProgress = 1 - Math.pow(1 - fillProgress, 3);
+
+        // 현재 수위
+        const targetWaterLevel = (score / 100) * nodeSize;
+        const currentWaterLevel = targetWaterLevel * easedProgress;
+
+        // 진폭 (차오르는 중: 5px, idle: 2px)
+        const baseAmplitude = fillProgress < 1 ? 5 : 2;
+        const amplitude = baseAmplitude * (0.8 + Math.sin(timestamp * 0.001 + phase) * 0.2);
+
+        // 경로 업데이트
+        const d = generateWavePath(nodeSize, nodeSize, currentWaterLevel, amplitude, phase, timestamp);
+        path.setAttribute('d', d);
+
+        // 흰색 텍스트 clip-path 업데이트
+        const textWhite = document.querySelector(`.node-text-white[data-score="${score}"]`);
+        if (textWhite && pathData.nodeId) {
+          const wrapper = document.getElementById(pathData.nodeId);
+          if (wrapper) {
+            const nodeTextWhite = wrapper.querySelector('.node-text-white');
+            if (nodeTextWhite) {
+              const clipTop = 100 - (currentWaterLevel / nodeSize * 100);
+              nodeTextWhite.style.clipPath = `inset(${clipTop}% 0 0 0)`;
+            }
+          }
+        }
+      });
+
+      if (liquidState.isAnimating) {
+        requestAnimationFrame(animateLiquid);
+      }
+    }
+
+    // 랜딩 시 액체 채우기 애니메이션 시작
+    function startLiquidAnimation() {
+      const paths = document.querySelectorAll('.liquid-path');
+
+      paths.forEach((path, index) => {
+        liquidState.paths.push({
+          path,
+          score: parseInt(path.dataset.score),
+          phase: parseFloat(path.dataset.phase),
+          nodeId: path.dataset.nodeId,
+          delay: index * 80 // 노드마다 딜레이
+        });
+      });
+
+      liquidState.isAnimating = true;
+      requestAnimationFrame(animateLiquid);
+    }
+
+    function updateConnections() {
+      const svg = document.querySelector('.connections');
+      const paths = svg.querySelectorAll('.connection-line');
+      let pathIndex = 0;
+
+      for (const [parent, children] of Object.entries(parentChild)) {
+        const parentPos = positions[parent];
+        const parentOffset = currentOffsets[parent] || { x: 0, y: 0 };
+        const parentCenterX = parentPos.x + nodeSize / 2 + parentOffset.x;
+        const parentBottomY = parentPos.y + nodeSize + parentOffset.y;
+
+        for (const child of children) {
+          const childPos = positions[child];
+          const childOffset = currentOffsets[child] || { x: 0, y: 0 };
+          const childCenterX = childPos.x + nodeSize / 2 + childOffset.x;
+          const childTopY = childPos.y + childOffset.y;
+          const midY = (parentBottomY + childTopY) / 2;
+
+          if (paths[pathIndex]) {
+            paths[pathIndex].setAttribute('d', `M ${parentCenterX} ${parentBottomY} C ${parentCenterX} ${midY}, ${childCenterX} ${midY}, ${childCenterX} ${childTopY}`);
+          }
+          pathIndex++;
+        }
+      }
+    }
+
+    function createConnections() {
+      const svg = document.querySelector('.connections');
+      svg.innerHTML = '';
+
+      for (const [parent, children] of Object.entries(parentChild)) {
+        const parentPos = positions[parent];
+        const parentCenterX = parentPos.x + nodeSize / 2;
+        const parentBottomY = parentPos.y + nodeSize;
+
+        for (const child of children) {
+          const childPos = positions[child];
+          const childCenterX = childPos.x + nodeSize / 2;
+          const childTopY = childPos.y;
+          const midY = (parentBottomY + childTopY) / 2;
+
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('d', `M ${parentCenterX} ${parentBottomY} C ${parentCenterX} ${midY}, ${childCenterX} ${midY}, ${childCenterX} ${childTopY}`);
+          path.setAttribute('class', 'connection-line');
+          svg.appendChild(path);
+        }
+      }
+    }
+
+    // 방계 관계 점선 (4촌 이내)
+    function createCollateralConnections() {
+      const svg = document.querySelector('.collateral-connections');
+      svg.innerHTML = '';
+
+      // childParent 맵핑 생성 (자식 -> 부모)
+      const childParent = {};
+      for (const [parent, children] of Object.entries(parentChild)) {
+        for (const child of children) {
+          childParent[child] = parent;
+        }
+      }
+
+      // 형제 관계 찾기 (같은 부모)
+      function getSiblings(id) {
+        const parent = childParent[id];
+        if (!parent) return [];
+        return (parentChild[parent] || []).filter(sibling => sibling !== id);
+      }
+
+      // 촌수 계산 (방계만: 2촌, 3촌, 4촌)
+      function getCollateralDegree(id1, id2) {
+        const parent1 = childParent[id1];
+        const parent2 = childParent[id2];
+        const grandparent1 = parent1 ? childParent[parent1] : null;
+        const grandparent2 = parent2 ? childParent[parent2] : null;
+
+        // 2촌: 형제 (같은 부모)
+        if (parent1 && parent1 === parent2) return 2;
+
+        // 3촌: 삼촌-조카
+        // id1이 삼촌, id2가 조카: id1의 형제가 id2의 부모
+        const siblings1 = getSiblings(id1);
+        if (siblings1.includes(parent2)) return 3;
+        // id2가 삼촌, id1이 조카
+        const siblings2 = getSiblings(id2);
+        if (siblings2.includes(parent1)) return 3;
+
+        // 4촌: 사촌 (같은 조부모, 다른 부모)
+        if (grandparent1 && grandparent1 === grandparent2 && parent1 !== parent2) return 4;
+
+        return null;
+      }
+
+      const allIds = Object.keys(positions);
+      const drawnPairs = new Set();
+
+      for (let i = 0; i < allIds.length; i++) {
+        for (let j = i + 1; j < allIds.length; j++) {
+          const id1 = allIds[i];
+          const id2 = allIds[j];
+          const pairKey = [id1, id2].sort().join('-');
+
+          if (drawnPairs.has(pairKey)) continue;
+
+          const degree = getCollateralDegree(id1, id2);
+          if (degree && degree <= 4) {
+            drawnPairs.add(pairKey);
+
+            const pos1 = positions[id1];
+            const pos2 = positions[id2];
+            const x1 = pos1.x + nodeSize / 2;
+            const y1 = pos1.y + nodeSize / 2;
+            const x2 = pos2.x + nodeSize / 2;
+            const y2 = pos2.y + nodeSize / 2;
+
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', x1);
+            line.setAttribute('y1', y1);
+            line.setAttribute('x2', x2);
+            line.setAttribute('y2', y2);
+            line.setAttribute('class', 'collateral-line');
+            svg.appendChild(line);
+          }
+        }
+      }
+    }
+
+    // ==================== 인터랙션 ====================
+    function handleNodeClick(id) {
+      const wrapper = document.getElementById(id);
+      if (wrapper.classList.contains('disabled')) return;
+
+      const selectedIndex = selectedKings.indexOf(id);
+      if (selectedIndex > -1) {
+        // 선택 해제: 원래 진폭으로 복귀
+        selectedKings.splice(selectedIndex, 1);
+        wrapper.classList.remove('selected');
+        setNodeNormal(id);
+      } else if (selectedKings.length < 2) {
+        // 선택: 부유 완전 정지
+        selectedKings.push(id);
+        wrapper.classList.add('selected');
+        setNodeSelected(id);
+      }
+
+      updateDisabledState();
+      updateRelationTooltip();
+    }
+
+    function updateDisabledState() {
+      const allWrappers = document.querySelectorAll('.node-wrapper');
+
+      if (selectedKings.length === 0) {
+        allWrappers.forEach(w => w.classList.remove('disabled'));
+        return;
+      }
+
+      if (selectedKings.length === 2) {
+        allWrappers.forEach(w => {
+          if (!selectedKings.includes(w.id)) w.classList.add('disabled');
+        });
+        return;
+      }
+
+      const selectedId = selectedKings[0];
+      allWrappers.forEach(w => {
+        if (w.id === selectedId) { w.classList.remove('disabled'); return; }
+        w.classList.toggle('disabled', calculateRelation(selectedId, w.id).distance > 4);
+      });
+    }
+
+    // 두 노드 중앙에 툴팁 배치
+    function calculateTooltipPosition(id1, id2) {
+      const pos1 = positions[id1];
+      const pos2 = positions[id2];
+
+      const center1X = pos1.x + nodeSize / 2;
+      const center1Y = pos1.y + nodeSize / 2;
+      const center2X = pos2.x + nodeSize / 2;
+      const center2Y = pos2.y + nodeSize / 2;
+
+      return {
+        x: (center1X + center2X) / 2,
+        y: (center1Y + center2Y) / 2
+      };
+    }
+
+    function updateRelationTooltip() {
+      const tooltip = document.querySelector('.relation-tooltip');
+
+      if (selectedKings.length !== 2) {
+        tooltip.classList.remove('visible');
+        return;
+      }
+
+      const [id1, id2] = selectedKings;
+      tooltip.textContent = getRelationText(id1, id2);
+      const tooltipPos = calculateTooltipPosition(id1, id2);
+      tooltip.style.left = tooltipPos.x + 'px';
+      tooltip.style.top = tooltipPos.y + 'px';
+      tooltip.classList.add('visible');
+    }
+
+    // ==================== 초기화 ====================
+    function init() {
+      initPhysics();
+      createNodes();
+      createCollateralConnections();
+      createConnections();
+
+      const viewport = document.querySelector('.viewport');
+
+      viewport.addEventListener('wheel', handleWheel, { passive: false });
+      viewport.addEventListener('mousedown', handleMouseDown);
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+
+      fitToInitialView();
+      window.addEventListener('resize', fitToViewport);
+
+      // SKILL.md: 모션 감소 선호 사용자는 물리 시뮬레이션 비활성화
+      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (!prefersReducedMotion) {
+        physics.animationFrameId = requestAnimationFrame(simulatePhysics);
+      }
+
+      // 랜딩 시 액체 채우기 애니메이션 (약간의 딜레이 후 시작)
+      setTimeout(startLiquidAnimation, 300);
+    }
+
+    init();
+  </script>
+</body>
+</html>
